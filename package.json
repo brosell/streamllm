@@ -1,0 +1,25 @@
+{
+  "name": "@barosell/streamllm",
+  "version": "0.1.0",
+  "description": "Support streaming LLM responses using rxjs observables",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "LLM",
+    "rxjx",
+    "Ollama",
+    "stream"
+  ],
+  "author": "Bert Rosell",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "openai": "^4.77.0",
+    "rxjs": "^7.8.1"
+  }
+}
