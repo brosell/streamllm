@@ -1,5 +1,6 @@
-import { concat, filter, finalize, map, Observable, of, reduce, scan, shareReplay, skip, Subject, switchMap, take, tap } from 'rxjs';
+import { concat, debounce, debounceTime, delay, filter, finalize, map, Observable, of, reduce, scan, shareReplay, skip, Subject, switchMap, take, tap } from 'rxjs';
 import { AiInterface, ChatRole, Completion } from '../lib/ai'
+import { access } from 'fs';
 
 const gpt35 = new AiInterface({
   apiKey: 'sk-',
@@ -21,43 +22,62 @@ function assignModels() : [AiInterface, AiInterface] {
     return [gpt35, llama]
   }
 }
+const iterations = 4;
+const debateResponseWordCount = 100;
+const conclusionWordCount = 150;
 
-const preamble = `You are a debate student in a mock debate.
-"Which band has had a more significant influence on the evolution of heavy metal music: Iron Maiden or Metallica?"
+const preamble = `Debate Topic: "Should genetic modification technologies be used to enhance human capabilities beyond therapeutic purposes?"
 
-This debate prompt invites an exploration of each band's contributions to the genre, their innovation in music
-and live performances, their global impact, and their influence on subsequent generations of musicians.
+Context: With the advent of CRISPR and other gene-editing technologies, the possibility of genetically enhancing human traits such as intelligence, physical ability, or psychological resilience is becoming more plausible. Proponents argue that this could lead to a new era of human potential, addressing issues such as disease prevention, enhanced cognitive abilities, and overall improved quality of life. Opponents raise concerns about ethical implications, societal inequality, and the fundamental nature of humanity. This topic invites exploration of scientific, ethical, and philosophical perspectives.
 
-Use 50 or fewer words per response.
+Key Points to Explore:
+
+The ethical implications of genetic enhancement and the concept of "playing God"
+Potential social inequality resulting from access to genetic enhancements
+Scientific feasibility and the current state of genetic technology
+Long-term societal impacts, including the concept of eugenics
+Legal and regulatory challenges associated with genetic enhancement policy
+Using this topic, students are encouraged to delve into interdisciplinary research, examining the implications from various angles including ethics, law, biotechnology, and sociology.
+
+Use ${debateResponseWordCount} or fewer words per response. Use active voice. Tone is professional and sincere. 
+
+It is fair to attack your opponents points.
 `;
 
-const maidenPreamble = `${preamble} You will be arguing that Iron Maiden is more significant than Metallica. You are a PhD candidate`;
-const metallicaPreamble = `${preamble} You will be arguing that Metallica is more significant than Iron Maiden. you are a 5 year old girl`;
+const positionOne = `${preamble} 
+Your position is For.`;
 
-const [maidenAi, metallicaAi] = assignModels();
+const positionTwo = `${preamble} 
+Your position is Against.`;
+
+const conclusionPrompt = `
+Now provide a conclusion to _your_ argument. Incorporate your opponents points. ${conclusionWordCount} words. You may only refer the the content of this debate. Outside sources are not allowed'
+`
+
+const [positionOneAi, positionTwoAi] = assignModels();
 
 const dps = new Subject<string>();
 
 const $limitedDps = dps.pipe(
-  take(4),
+  take(iterations),
 );
 
-const maidenCompletions = $limitedDps.pipe(
+const $positionOneCompletions = $limitedDps.pipe(
   map(prompt => <Completion>{ role: ChatRole.SYSTEM, content: prompt }),
   scan<Completion, Completion[], Completion[]>((acc, completion, index) => {
     completion.role = index % 2 ? ChatRole.ASSISTANT : ChatRole.USER;
     return [...acc, completion]
-  }, [{role: ChatRole.SYSTEM, content: maidenPreamble}]),
+  }, [{role: ChatRole.SYSTEM, content: positionOne}]),
   shareReplay(1),
 );
 
-const metallicaCompletions = $limitedDps.pipe(
+const $positionTwoCompletions = $limitedDps.pipe(
   skip(1),
   map(prompt => <Completion>{ role: ChatRole.SYSTEM, content: prompt }),
   scan<Completion, Completion[], Completion[]>((acc, completion, index) => {
     completion.role = index % 2 ? ChatRole.ASSISTANT : ChatRole.USER;
     return [...acc, completion]
-  }, [{role: ChatRole.SYSTEM, content: metallicaPreamble}]),
+  }, [{role: ChatRole.SYSTEM, content: positionTwo}]),
   shareReplay(1),
 );
 
@@ -74,8 +94,51 @@ const createPipeline = (completions$: Observable<Completion[]>, ai: AiInterface,
   );
 };
 
-createPipeline(maidenCompletions, maidenAi, 'Iron Maiden').subscribe();
-createPipeline(metallicaCompletions, metallicaAi, 'Metallica').subscribe();
+const complete = new Subject<void>();
+const $complete = complete.pipe(
+  shareReplay(1),
+)
+
+createPipeline($positionOneCompletions, positionOneAi, 'For').pipe(
+  finalize(() => complete.next())
+).subscribe();
+
+createPipeline($positionTwoCompletions, positionTwoAi, 'Against').pipe(
+  finalize(() => complete.next())
+).subscribe();
+
+$complete.pipe(
+  skip(1), take(1),
+  switchMap(() => $positionOneCompletions.pipe(
+    reduce((acc, cur) => cur),
+    take(1),
+    tap(() => process.stdout.write('\n\nFor - Conclusion\n')),
+    switchMap((res: Completion[]) => positionOneAi.prompt([
+      ...res, {
+        role: ChatRole.USER,
+        content: conclusionPrompt
+      }]).pipe(
+        tap(delta => process.stdout.write(delta)),
+       )
+    ),
+    reduce((acc, cur) => cur),
+    tap(() => process.stdout.write('\n')),
+    switchMap(() => $positionTwoCompletions.pipe(
+      reduce((acc, cur) => cur),
+      tap(() => process.stdout.write('\n\nAgainst - Conclusion\n')),
+      switchMap((res: Completion[]) => positionTwoAi.prompt([
+        ...res, {
+          role: ChatRole.USER,
+          content: conclusionPrompt
+        }]).pipe(
+          tap(delta => process.stdout.write(delta)),
+        )
+      ),
+      finalize(() => process.stdout.write('\n'))
+    )),
+  )),
+  
+).subscribe();
 
 dps.next('You go first. Begin');
 
