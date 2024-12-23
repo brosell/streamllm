@@ -23,8 +23,8 @@ function assignModels() : [AiInterface, AiInterface] {
   }
 }
 const iterations = 4;
-const debateResponseWordCount = 100;
-const conclusionWordCount = 150;
+const debateResponseWordCount = 25;
+const conclusionWordCount = 25;
 
 const preamble = `Debate Topic: "Should genetic modification technologies be used to enhance human capabilities beyond therapeutic purposes?"
 
@@ -39,7 +39,7 @@ Long-term societal impacts, including the concept of eugenics
 Legal and regulatory challenges associated with genetic enhancement policy
 Using this topic, students are encouraged to delve into interdisciplinary research, examining the implications from various angles including ethics, law, biotechnology, and sociology.
 
-Use ${debateResponseWordCount} or fewer words per response. Use active voice. Tone is professional and sincere. 
+Use ${debateResponseWordCount} or fewer words per response. Use active voice. Tone is professional and sincere. Do not talk to your opponent.
 
 It is fair to attack your opponents points.
 `;
@@ -107,37 +107,24 @@ createPipeline($positionTwoCompletions, positionTwoAi, 'Against').pipe(
   finalize(() => complete.next())
 ).subscribe();
 
-$complete.pipe(
-  skip(1), take(1),
-  switchMap(() => $positionOneCompletions.pipe(
+const processCompletion = ($completions: Observable<Completion[]>, aiService: AiInterface, label: string) => 
+  $completions.pipe(
     reduce((acc, cur) => cur),
-    take(1),
-    tap(() => process.stdout.write('\n\nFor - Conclusion\n')),
-    switchMap((res: Completion[]) => positionOneAi.prompt([
-      ...res, {
-        role: ChatRole.USER,
-        content: conclusionPrompt
-      }]).pipe(
+    tap(() => process.stdout.write(`\n\n## ${label} - Conclusion\n`)),
+    switchMap((res: Completion[]) =>
+      aiService.prompt([...res, { role: ChatRole.USER, content: conclusionPrompt }]).pipe(
         tap(delta => process.stdout.write(delta)),
-       )
-    ),
-    reduce((acc, cur) => cur),
-    tap(() => process.stdout.write('\n')),
-    switchMap(() => $positionTwoCompletions.pipe(
-      reduce((acc, cur) => cur),
-      tap(() => process.stdout.write('\n\nAgainst - Conclusion\n')),
-      switchMap((res: Completion[]) => positionTwoAi.prompt([
-        ...res, {
-          role: ChatRole.USER,
-          content: conclusionPrompt
-        }]).pipe(
-          tap(delta => process.stdout.write(delta)),
-        )
-      ),
-      finalize(() => process.stdout.write('\n'))
-    )),
-  )),
-  
+        reduce((acc, cur) => cur),
+        tap(() => process.stdout.write('\n')),
+      )
+    )
+  );
+
+$complete.pipe(
+  skip(1),
+  take(1),
+  switchMap(() => processCompletion($positionOneCompletions, positionOneAi, "For")),
+  switchMap(() => processCompletion($positionTwoCompletions, positionTwoAi, "Against")),
 ).subscribe();
 
 dps.next('You go first. Begin');
