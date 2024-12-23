@@ -5,7 +5,9 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:smoke": "ts-node test/smoke-test.ts",
+    "test:debate": "ts-node test/debate.ts"
   },
   "keywords": [
     "LLM",
@@ -16,6 +18,8 @@
   "author": "Bert Rosell",
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {
