@@ -62,6 +62,14 @@ const $limitedDps = dps.pipe(
   take(iterations),
 );
 
+const output = new Subject<string>();
+
+let debateText = ''
+output.pipe(
+  tap(cur => process.stdout.write(cur)),
+  tap(cur => debateText += cur)
+).subscribe();
+
 const $positionOneCompletions = $limitedDps.pipe(
   map(prompt => <Completion>{ role: ChatRole.SYSTEM, content: prompt }),
   scan<Completion, Completion[], Completion[]>((acc, completion, index) => {
@@ -84,12 +92,12 @@ const $positionTwoCompletions = $limitedDps.pipe(
 const createPipeline = (completions$: Observable<Completion[]>, ai: AiInterface, label: string) => {
   return completions$.pipe(
     filter(completions => completions[completions.length - 1]?.role === ChatRole.USER),
-    tap(() => console.log(`\n\n**${label}**\n`)),
+    tap(() => output.next(`\n\n**${label}**\n`)),
     switchMap(completions => ai.prompt(completions).pipe(
-      tap(delta => process.stdout.write(delta)),
+      tap(delta => output.next(delta)),
       reduce((answer, delta) => answer + delta)
     )),
-    tap(() => process.stdout.write('\n')),
+    tap(() => output.next('\n')),
     tap(answer => dps.next(answer))
   );
 };
@@ -110,12 +118,12 @@ createPipeline($positionTwoCompletions, positionTwoAi, 'Against').pipe(
 const processCompletion = ($completions: Observable<Completion[]>, aiService: AiInterface, label: string) => 
   $completions.pipe(
     reduce((acc, cur) => cur),
-    tap(() => process.stdout.write(`\n\n## ${label} - Conclusion\n`)),
+    tap(() => output.next(`\n\n## ${label} - Conclusion\n`)),
     switchMap((res: Completion[]) =>
       aiService.prompt([...res, { role: ChatRole.USER, content: conclusionPrompt }]).pipe(
-        tap(delta => process.stdout.write(delta)),
+        tap(delta => output.next(delta)),
         reduce((acc, cur) => cur),
-        tap(() => process.stdout.write('\n')),
+        tap(() => output.next('\n')),
       )
     )
   );
@@ -125,7 +133,26 @@ $complete.pipe(
   take(1),
   switchMap(() => processCompletion($positionOneCompletions, positionOneAi, "For")),
   switchMap(() => processCompletion($positionTwoCompletions, positionTwoAi, "Against")),
-).subscribe();
+  tap(() => process.stdout.write('\n\n## Grades\n')),
+  switchMap(() => positionOneAi.prompt([{
+      role: ChatRole.USER,
+      content: `
+      ${analysisPrompt}
+
+      Here is the transcript from the debate. 
+      
+      ---
+      ${debateText}
+      `
+    }]).pipe(
+      tap(delta => output.next(delta)),
+      reduce(() => true)
+    )
+  ),
+  tap(() => process.stdout.write('\n\n')),
+).subscribe(() =>{
+  
+});
 
 dps.next('You go first. Begin');
 
