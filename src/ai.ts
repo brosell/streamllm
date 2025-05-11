@@ -1,6 +1,6 @@
-import OpenAI, { ClientOptions } from "openai";
+import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
-import { Observable, Subject } from "rxjs";
+import { filter, map, Observable, Subject } from "rxjs";
 
 export type ChatRole = 'SYSTEM' | 'USER' | 'ASSISTANT';
 
@@ -16,7 +16,16 @@ export class AiInterface {
   ) {  }
 
   stream(completions: Completion[]): Observable<string> {
-    const deltas = new Subject<string>();
+    const subject = new Subject<{content: string, type: string}>();
+    const deltas = subject.pipe(
+      filter(c => c.type == 'delta'),
+      map(c => c.content),
+    );
+
+    const response = subject.pipe(
+      filter(c => c.type == 'response'),
+      map(c => c.content)
+    );
 
     (async () => {
       try {
@@ -28,13 +37,16 @@ export class AiInterface {
 
         let content = '';
         for await (const part of stream) {
-          content += part.choices[0]?.delta?.content || '';
-          deltas.next(part?.choices[0]?.delta?.content || '');
+          const delta = part.choices[0]?.delta?.content || '';
+          content += delta;
+          subject.next({type: 'delta', content: delta});
         }
   
-        deltas.complete();
+        subject.next({type: 'response', content});
+        subject.complete();
       } catch(error) {
-        deltas.error(error)
+        subject.error(error);
+        subject.complete();
       }
     })();
 
