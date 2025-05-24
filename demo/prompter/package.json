@@ -1,6 +1,7 @@
 {
   "name": "@barosell/prompter",
-  "version": "0.1.4",
+  "author": "Bert Rosell",
+  "version": "0.1.5",
   "description": "pipe data for prompts to LLMs",
   "main": "lib/prompter.js",
   "bin": {
@@ -9,7 +10,6 @@
   "scripts": {
     "build": "tsc"
   },
-  "author": "",
   "license": "MIT",
   "dependencies": {
     "@barosell/streamllm": "^0.1.0",

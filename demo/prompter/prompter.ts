@@ -4,7 +4,7 @@ import { hideBin } from 'yargs/helpers';
 import { AiModel } from '@barosell/streamllm'
 import OpenAI from 'openai';
 import { tap, finalize, fromEvent, map, reduce, switchMap, takeUntil } from 'rxjs';
-import { readFileSync } from 'fs';
+import { createReadStream, readFileSync } from 'fs';
 
 const argv: any = yargs(hideBin(process.argv))
   .scriptName('prompter')
@@ -18,6 +18,7 @@ const argv: any = yargs(hideBin(process.argv))
     type: 'boolean',
     description: 'don\'t print the input',
   })
+
   .parse();
 
 function getPrompt(input: string): string {
@@ -39,8 +40,10 @@ const ai = new AiModel(
 
 process.stdin.setEncoding('utf8');
 
-fromEvent(process.stdin, 'data').pipe(
-  takeUntil(fromEvent(process.stdin, 'end')),
+const stream = argv._.length === 0 || argv._[0] === '-' ? process.stdin : createReadStream(argv._[0], { encoding: 'utf8' });
+
+fromEvent(stream, 'data').pipe(
+  takeUntil(fromEvent(stream, 'end')),
   tap(chunk => {
     if (!argv.q) {
        process.stdout.write(chunk as string);
