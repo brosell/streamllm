@@ -1,13 +1,13 @@
 {
   "name": "@barosell/prompter",
-  "version": "0.1.0",
-  "description": "Demo for streamllm",
-  "main": "prompter.ts",
+  "version": "0.1.4",
+  "description": "pipe data for prompts to LLMs",
+  "main": "lib/prompter.js",
   "bin": {
-    "prompter": "prompter.ts"
+    "prompter": "lib/prompter.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
   "author": "",
   "license": "MIT",
