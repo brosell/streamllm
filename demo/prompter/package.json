@@ -1,8 +1,11 @@
 {
-  "name": "prompter",
+  "name": "@barosell/prompter",
   "version": "1.0.0",
   "description": "Demo for streamllm",
   "main": "prompter.ts",
+  "bin": {
+    "prompter": "./prompter.ts"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
