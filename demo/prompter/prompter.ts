@@ -3,7 +3,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { AiModel } from '@barosell/streamllm'
 import OpenAI from 'openai';
-import { tap, finalize } from 'rxjs';
+import { tap, finalize, fromEvent, map, reduce, switchMap, takeUntil } from 'rxjs';
 import { readFileSync } from 'fs';
 
 const argv: any = yargs(hideBin(process.argv))
@@ -39,24 +39,19 @@ const ai = new AiModel(
 
 process.stdin.setEncoding('utf8');
 
-let inputData = '';
-
-// Collect data from stdin
-process.stdin.on('data', (chunk) => {
-  if (!argv.q) {
-    process.stdout.write(chunk);
-  }
-  inputData += chunk;
-});
-
-process.stdin.on('end', () => {
-  const content = userPrompt.replace('{{content}}', inputData.trim());
-  ai.stream([{
-  role: 'USER',
-  content
-}]).pipe(
-  tap(delta => process.stdout.write(delta)),
-  finalize(() => process.stdout.write('\n\n')),
+fromEvent(process.stdin, 'data').pipe(
+  takeUntil(fromEvent(process.stdin, 'end')),
+  tap(chunk => {
+    if (!argv.q) {
+       process.stdout.write(chunk as string);
+    }
+  }),
+  reduce((acc, chunk) => acc + chunk, ''),
+  map(data => userPrompt.replace('{{content}}', data.trim())),
+  switchMap(content  => ai.stream([{
+    role: 'USER',
+    content
+  }])),
+  tap(delta =>  process.stdout.write(delta)),
+  finalize(() => console.log('\n\n')),
 ).subscribe();
-});
-
