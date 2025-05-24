@@ -2,7 +2,6 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { AiModel } from '@barosell/streamllm'
-import { AiInterface } from '@barosell/streamllm/lib/ai';
 import OpenAI from 'openai';
 import { tap, finalize } from 'rxjs';
 import { readFileSync } from 'fs';
@@ -18,12 +17,9 @@ const argv: any = yargs(hideBin(process.argv))
     alias: 'q',
     type: 'boolean',
     description: 'don\'t print the input',
-    // default: false
   })
   .parse();
 
-// console.log(argv)
-// process.exit(0);
 function getPrompt(input: string): string {
   if (input.startsWith('@')) {
     const filePath = input.slice(1);
@@ -34,7 +30,7 @@ function getPrompt(input: string): string {
 const prompt = getPrompt(argv.prompt);
 const userPrompt = prompt.indexOf('{{content}}') > -1 ? prompt : `${prompt}\n---\n{{content}}`;
   
-const ai = new AiInterface(
+const ai = new AiModel(
   new OpenAI({
     // apiKey: 'sk-****', // in process.env.OPENAI_API_KEY
   }), 
